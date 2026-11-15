@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Diagnostics;
 using System.Xml;
 
 class Ficheros_CSV_XML
@@ -18,8 +19,14 @@ class Ficheros_CSV_XML
     static string filtroTexto = "";
     static int filtroAnio = 0;
 
+    // Para los logs de Windows
+    static string fuenteLog = "ScriptCSVToXML";
+    static bool logActivo = false;
+
     static void Main(string[] args)
     {
+        PrepararLog();
+
         int opcion;
         do
         {
@@ -98,10 +105,13 @@ class Ficheros_CSV_XML
     {
         try
         {
+            Log("INICIO de la exportación de CSV a XML. Fichero origen (CSV): " + Path.GetFullPath(rutaCsv)
+                + ". Fichero destino (XML): " + Path.GetFullPath(rutaXml));
             LeerCsv();
             if (!PedirFiltro(opcion))
             {
                 Console.WriteLine("Dato no válido.");
+                Log("Exportación de CSV a XML cancelada: dato del filtro no válido.");
                 return;
             }
             EscribirXml(opcion);
@@ -117,10 +127,13 @@ class Ficheros_CSV_XML
     {
         try
         {
+            Log("INICIO de la exportación de XML a CSV. Fichero origen (XML): " + Path.GetFullPath(rutaXml)
+                + ". Fichero destino (CSV): " + Path.GetFullPath(rutaCsv));
             LeerXml();
             if (!PedirFiltro(opcion))
             {
                 Console.WriteLine("Dato no válido.");
+                Log("Exportación de XML a CSV cancelada: dato del filtro no válido.");
                 return;
             }
 
@@ -131,6 +144,7 @@ class Ficheros_CSV_XML
                 if (Console.ReadLine().Trim().ToLower() != "s")
                 {
                     Console.WriteLine("Cancelado. Cambia la ruta del CSV con la opción 5.");
+                    Log("Exportación de XML a CSV cancelada: el usuario no quiere sobrescribir " + Path.GetFullPath(rutaCsv));
                     return;
                 }
             }
@@ -162,6 +176,7 @@ class Ficheros_CSV_XML
                     duraciones[total] = campos[3];
                     puntuaciones[total] = campos[4];
                     idiomas[total] = campos[5];
+                    Log("Elemento leído del CSV: " + DatosPelicula(total));
                     total++;
                 }
             }
@@ -216,6 +231,7 @@ class Ficheros_CSV_XML
                 duraciones[total] = nodo.SelectSingleNode("Runtime").InnerText;
                 puntuaciones[total] = nodo.SelectSingleNode("IMDBScore").InnerText;
                 idiomas[total] = nodo.SelectSingleNode("Language").InnerText;
+                Log("Elemento leído del XML: " + DatosPelicula(total));
                 total++;
             }
         }
@@ -327,6 +343,8 @@ class Ficheros_CSV_XML
             sw.WriteLine("</Peliculas>");
         }
         Console.WriteLine(exportadas + " película(s) exportada(s) a " + rutaXml);
+        Log("FIN de la exportación de CSV a XML. Películas exportadas: " + exportadas
+            + ". Fichero nuevo creado en: " + Path.GetFullPath(rutaXml));
     }
 
     static void EscribirCsv(int opcion)
@@ -347,6 +365,8 @@ class Ficheros_CSV_XML
             }
         }
         Console.WriteLine(exportadas + " película(s) exportada(s) a " + rutaCsv);
+        Log("FIN de la exportación de XML a CSV. Películas exportadas: " + exportadas
+            + ". Fichero nuevo creado en: " + Path.GetFullPath(rutaCsv));
     }
 
     // En XML los símbolos & < > no se pueden escribir tal cual
@@ -363,5 +383,51 @@ class Ficheros_CSV_XML
             return "\"" + campo + "\"";
         }
         return campo;
+    }
+
+    //LOGS DE WINDOWS
+    // Prepara el log. Hay que ejecutar el programa como administrador
+    static void PrepararLog()
+    {
+        try
+        {
+            if (!EventLog.SourceExists(fuenteLog))
+            {
+                EventLog.CreateEventSource(fuenteLog, "Application");
+                Console.WriteLine("Fuente de log creada. Cierra el programa y ejecútalo otra vez para empezar a guardar logs.");
+            }
+            else
+            {
+                logActivo = true;
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("No se pueden usar los logs de Windows (ejecuta como administrador): " + e.Message);
+        }
+    }
+
+    // Escribe una línea en el log de Windows (Visor de eventos)
+    static void Log(string mensaje)
+    {
+        if (logActivo)
+        {
+            try
+            {
+                EventLog.WriteEntry(fuenteLog, mensaje, EventLogEntryType.Information);
+            }
+            catch (Exception e)
+            {
+                logActivo = false;
+                Console.WriteLine("Se desactivan los logs: " + e.Message);
+            }
+        }
+    }
+
+    // Devuelve los datos de la película número i en un texto
+    static string DatosPelicula(int i)
+    {
+        return "Title = " + titulos[i] + ", Genre = " + generos[i] + ", Premiere = " + fechas[i]
+            + ", Runtime = " + duraciones[i] + ", IMDBScore = " + puntuaciones[i] + ", Language = " + idiomas[i];
     }
 }
